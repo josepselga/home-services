@@ -1,0 +1,89 @@
+---
+services:
+    filebrowser:
+      restart: unless-stopped
+      container_name: filebrowser
+      image: filebrowser/filebrowser
+      ports:
+        - 8880:80
+      environment:
+        - PUID=1000
+        - PGID=1000
+      volumes:
+        - /:/srv
+        - /opt/filebrowser/filebrowser.db:/database/filebrowser.db \
+        - /opt/filebrowser/settings.json:/config/settings.json
+    
+    openspeedtest:
+        restart: unless-stopped
+        container_name: openspeedtest
+        ports:
+            - '3000:3000'
+            - '3001:3001'
+        image: openspeedtest/latest    
+    
+    dashy:
+      container_name: dashy
+      image: lissy93/dashy
+      volumes:
+        #- /opt/dashy/conf.yml:/app/public/conf.yml
+        - /opt/dashy/conf.yml:/app/user-data/conf.yml
+        #- /opt/dashy/item-icons:/app/public/item-icons
+      ports:
+        - 4000:8080
+      environment:
+        - NODE_ENV=production
+      restart: unless-stopped
+      healthcheck:
+        test: ['CMD', 'node', '/app/services/healthcheck']
+        interval: 1m30s
+        timeout: 10s
+        retries: 3
+        #start_period: 40s
+  
+    calibre-web:
+      image: lscr.io/linuxserver/calibre-web:latest
+      container_name: calibre
+      environment:
+        - PUID=1000
+        - PGID=1000
+        - TZ=Etc/UTC
+        - DOCKER_MODS=linuxserver/mods:universal-calibre #optional
+        - OAUTHLIB_RELAX_TOKEN_SCOPE=1 #optional
+      volumes:
+        - /opt/calibre:/config
+        - /media/disk1/BOOKS/:/books
+      ports:
+        - 8183:8083
+      restart: unless-stopped
+
+    speedtest-tracker:   
+        image: lscr.io/linuxserver/speedtest-tracker:latest
+        restart: unless-stopped
+        container_name: speedtest-tracker
+        ports:
+            - 5580:80
+            - 5443:443
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - APP_KEY==${SPEEDTEST_APP_KEY}
+            - DB_CONNECTION=sqlite
+            - SPEEDTEST_SCHEDULE = 0 * * * *
+        volumes:
+            - /opt/speedtest-tracker/config:/config
+            - /opt/speedtest-tracker/ssl-keys:/config/keys
+    stirling-pdf:
+        image: stirlingtools/stirling-pdf:latest
+        container_name: stirling-pdf
+        ports:
+          - '8280:8080'
+        volumes:
+          - /opt/StirlingPDF/trainingData:/usr/share/tessdata # Required for extra OCR languages
+          - /opt/StirlingPDF/extraConfigs:/configs
+          - /opt/StirlingPDF/customFiles:/customFiles/
+          - /opt/StirlingPDF/logs:/logs/
+          - /opt/StirlingPDF/pipeline:/pipeline/
+        environment:
+          - DOCKER_ENABLE_SECURITY=false
+          - LANGS=en_GB

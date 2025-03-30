@@ -1,0 +1,31 @@
+name: vaultWarden
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: always
+    ports:
+      - 8083:80
+    environment:
+      DOMAIN: ${VAULT_DOMAIN}
+    volumes:
+      - /opt/vaultwarden/vw-data:/data
+
+  # caddy:
+  #   image: caddy:2
+  #   container_name: caddy
+  #   restart: always
+  #   ports:
+  #     - 10080:80
+  #     - 10443:443
+  #   volumes:
+  #     - ./caddy:/usr/bin/caddy  # Your custom build of Caddy.
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - /opt/caddy/caddy-config:/config
+  #     - /opt/caddy/caddy-data:/data
+  #   environment:
+  #     DOMAIN: ${VAULT_DOMAIN}
+  #     EMAIL: ${VAULT_EMAIL}
+  #     DUCKDNS_TOKEN: ${VAULT_DUCKDNS_TOKEN}
+  #     LOG_FILE: "/data/access.log"

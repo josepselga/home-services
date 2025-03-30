@@ -1,0 +1,142 @@
+name: homeassistant
+
+services:
+  homeassistant:
+    container_name: homeassistant
+    #image: "ghcr.io/home-assistant/home-assistant:stable"
+    image: "lscr.io/linuxserver/homeassistant:latest"
+    volumes:
+      - /opt/homeassistant/config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/dbus:/var/run/dbus
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+    network_mode: host
+    environment:
+      - TZ=Europe/Madrid
+    depends_on:
+#     - mariadb
+      - influxdb
+      - mosquitto
+
+  mariadb:
+    container_name: mariadb
+    image: mariadb
+    profiles:
+      - donotstart
+    restart: unless-stopped
+    ports:
+      - "3306:3306/tcp"
+    environment:
+      - TZ=Europe/Madrid
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_HA_DATABASE}
+      - MYSQL_USER=${MYSQL_HA_USER}
+      - MYSQL_PASSWORD=${MYSQL_HA_PASSWORD}
+    volumes:
+      - /opt/mariadb/data:/var/lib/mysql
+      - /opt/mariadb/config/:/etc/mysql/conf.d
+  
+  influxdb:
+    container_name: influxdb
+    image: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086/tcp"   # So we can access the WebUI
+    environment:
+      - TZ=Europe/Madrid
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+    volumes:
+      - /opt/influxdb/data:/var/lib/influxdb2
+      - /opt/influxdb/config/:/etc/influxdb2
+    ulimits:
+      nofile:
+        soft: 32768
+        hard: 32768
+  
+  duplicati:
+    image: lscr.io/linuxserver/duplicati:latest
+    container_name: duplicati
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Europe/Madrid
+      - SETTINGS_ENCRYPTION_KEY=${SETTINGS_ENCRYPTION_KEY}
+      - DUPLICATI__WEBSERVICE_PASSWORD=${DUPLICATI__WEBSERVICE_PASSWORD}
+      - CLI_ARGS= #optional
+    volumes:
+      - /opt/duplicati/appdata/config:/config
+      - /backups:/backups
+      - /:/source
+    ports:
+      - 8200:8200
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /opt/mosquitto/config:/mosquitto/config
+      - /opt/mosquitto/data:/mosquitto/data
+      - /opt/mosquitto/log:/mosquitto/log
+
+  dahuavto2mqtt:
+    profiles:
+      - donotstart
+    image: "registry.gitlab.com/elad.bar/dahuavto2mqtt:latest"
+    #image: "josepsv/dahuamod"
+    container_name: "dahuavto2mqtt"
+    hostname: "dahuavto2mqtt"
+    restart: "unless-stopped"
+    environment:
+      - DAHUA_VTO_HOST=${DAHUA_VTO_HOST}
+      - DAHUA_VTO_USERNAME=${DAHUA_VTO_USERNAME}
+      - DAHUA_VTO_PASSWORD=${DAHUA_VTO_PASSWORD}
+      - DAHUA_VTO_SSL=True
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOSTMQTT_BROKER_HOST}
+      - MQTT_BROKER_PORT=1883
+      - MQTT_BROKER_USERNAME=${MQTT_BROKER_USERNAME}
+      - MQTT_BROKER_PASSWORD=${MQTT_BROKER_PASSWORD} 
+      - MQTT_BROKER_TOPIC_PREFIX=DahuaVTO
+      - MQTT_BROKER_CLIENT_ID=DahuaVTO2MQTT
+      - DEBUG=False     
+
+  nodered:
+    profiles:
+      - donotstart
+    container_name: nodered
+    image: nodered/node-red
+    restart: unless-stopped
+    ports:
+      - "1880:1880/tcp"
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - /opt/nodered/data:/data
+    depends_on:
+      - homeassistant
+      - mosquitto
+
+  vscode:
+    container_name: vscode
+    image: codercom/code-server
+    volumes:
+      # Set <project dir> to the directory you want to open in VS Code.
+      - /opt/homeassistant:/home/coder/project
+      # <vs code config> should point to a local dir where vs code stores its data.
+      - /opt/vscode:/home/coder/.local/share/code-server
+    ports:
+      - "8443:8080"
+    command: code-server --auth password --disable-telemetry /home/coder/project
+    environment:
+      PASSWORD: ${VSCODE_PASSWORD} 
+    restart: unless-stopped
